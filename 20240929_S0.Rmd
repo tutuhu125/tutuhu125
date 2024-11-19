@@ -1,0 +1,105 @@
+---
+title: "20240922_diarrhea_S0"
+output: html_document
+bibliography: references.bib
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+  knitr::opts_chunk$set(echo = TRUE)
+  library(curatedMetagenomicData)
+  #BiocManager::install("waldronlab/curatedMetagenomicDataAnalyses", dependencies = TRUE)
+  library(curatedMetagenomicAnalyses)
+  library(dplyr)
+  library(table1)
+  library(DT)
+```
+
+###Filter out Diarrhea Datasets
+
+We use the package Curated Metagenomics [@pasolli2017] from Bioconductor. We checked if each disease condition have >20 samples. 
+
+```{r disease_lst, echo=FALSE, warning=FALSE, message=FALSE}
+  ### https://waldronlab.io/curatedMetagenomicDataAnalyses/articles/MLdatasets.html
+  data("sampleMetadata")
+  av_disease <- pull(sampleMetadata, disease) |>
+  ##study condition returns more diverse disease result comapring to only study condition
+    table() |>
+    sort (decreasing = TRUE)
+  av_disease <- av_disease [av_disease > 20]
+  
+  studies <- lapply(names(av_disease), function(x){
+     filter(sampleMetadata, disease %in% x) |>
+      pull(study_name) |>
+      unique()
+  })
+  names(studies) <- names(av_disease)
+  studies <- studies[-grep("healthy", names(studies))] #get rid of controls
+  studies
+  
+```
+
+We decided to focus on these following diarrhea-related diseases: 'IBD', 'acute_diarrhoea', 'CDI', 'TKI_dependent_diarrhoea', and 'STEC'.
+
+```{r get_meta, echo=FALSE, warning=FALSE, message=FALSE}
+  disease_lst <- c("acute_diarrhoea", "CDI", "STEC", "IBD", "TKI_dependent_diarrhoea")
+  study_lst <- studies[names(studies) %in% disease_lst]
+  
+  diarrheaStudy <- filter(sampleMetadata, 
+                          study_name %in% unlist(study_lst)) |>
+    filter(body_site=="stool") |>
+    select(where(~ !all(is.na(.x)))) #|>
+    #returnSamples("relative_abundance", counts = TRUE, rownames = "long") 
+  
+ table1( ~ disease + age + age_category + gender + country,
+                data = diarrheaStudy)
+```
+
+According to the distribution of data, we decided to filter out the condition with too less samples (study conditions and country with < 40 samples).
+
+```{r filter_meta, echo=FALSE, warning=FALSE, message=FALSE}
+  filter_lst <- c("acute_diarrhoea", "CDI", "TKI_dependent_diarrhoea", "IBD", "healthy", "STEC")
+  diarrheaStudy <- diarrheaStudy[(diarrheaStudy$disease %in% filter_lst) &
+                                         (diarrheaStudy$country != "CHN"), ]
+  
+  table1::table1( ~ disease + age + age_category + gender + country,
+                data = diarrheaStudy)
+```
+
+Afterwards, we will save the relative abundance data, function and corresponding metadata into rds files, named as "__202400922_diarrhea_comp_profile.rds__" and "__20240922_diarrhea_func_profile.rds__" respectively.
+
+```{r get_data_and_save, include=TRUE, eval=FALSE, echo=TRUE}
+  dia_ra <- returnSamples(diarrheaStudy,
+                              "relative_abundance", rownames = "long")
+  dia_pathway <- returnSamples(diarrheaStudy, "pathway_abundance")
+  
+  ## remove samples without pathway info
+  rm_lst <- colnames(dia_pathway)[colSums(assay(dia_pathway)) == 0]
+  
+  ## check the present number of species in these samples
+  colSums(assay(dia_ra)[, rm_lst] > 0)
+  ## Seems these samples have very low (suspicious?) alpha-diversity, quickly
+  ## check the metadata
+  rm_meta <- diarrheaStudy[diarrheaStudy$sample_id %in% rm_lst, ]
+  ## nothing too strange with meta data, therefore, it might be safer just 
+  ## remove those samples for both "relative abundance" and "pathway_abundance"
+  
+  diarrheaStudy <- diarrheaStudy[!(diarrheaStudy$sample_id %in% rm_lst), ]
+  dia_ra <- returnSamples(diarrheaStudy,
+                            "relative_abundance",
+                             rownames = "long")
+  
+  dia_ra_counts <- returnSamples(diarrheaStudy,
+                            "relative_abundance", counts = TRUE,
+                             rownames = "long")
+  #I encountered problems while retrieving the counts data. The error reported that the number of columns in assays must equal to the number of rows in colData, which it should be since the data with relative abundance works perfectly fine. I was wondering where it could have gone wrong and how can I fix it. 
+  
+  
+  dia_pathway <- returnSamples(diarrheaStudy, "pathway_abundance")
+  
+  
+  saveRDS(dia_ra, "20240922_diarrhea_comp_profile.rds")
+  saveRDS(dia_ra_counts, "20240922_diarrhea_counts_profile.rds")
+  saveRDS(dia_pathway, "20240922_diarrhea_func_profile.rds")
+```
+
