@@ -2,4 +2,4 @@
 - 🌱 I’m currently working on the gut microbiome signature of diarrhea detection. 
 - 📫 How to reach me: email: tutuhu0125@gmail.com
 - 😄 Pronouns: She/her
-- ⚡ Fun fact: I love biology, but I hate wet labs. Live laugh, love coding. 
+- ⚡ Fun fact: I love biology. Live laugh, love coding. 
